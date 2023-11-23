@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"rule/pkg/apis/logging.whizard.io/v1alpha1"
+	"rule/pkg/cache"
 	"rule/pkg/constant"
 	"rule/pkg/utils"
 
@@ -71,18 +72,18 @@ var resourceInWorkSpace = []string{
 	"workspacemembers",
 }
 
-func (r *Rule) GetMessage(e *Event, m map[string]interface{}, rs map[string]Rule) string {
+func (r *Rule) GetMessage(a *Auditing, m map[string]interface{}, rs map[string]Rule) string {
 
 	var msg string
 	if len(r.Output) == 0 {
-		if len(e.Workspace) > 0 && utils.IsExist(resourceInWorkSpace, e.ObjectRef.Resource) {
-			msg = fmt.Sprintf("%s %s %s '%s' in Workspace %s", e.User.Username, e.Verb, e.ObjectRef.Resource, e.ObjectRef.Name, e.Workspace)
-		} else if len(e.Devops) > 0 {
-			msg = fmt.Sprintf("%s %s %s '%s' in Devops %s", e.User.Username, e.Verb, e.ObjectRef.Resource, e.ObjectRef.Name, e.Devops)
-		} else if len(e.ObjectRef.Namespace) > 0 && e.ObjectRef.Resource != "namespaces" && e.ObjectRef.Resource != "federatednamespaces" {
-			msg = fmt.Sprintf("%s %s %s '%s' in Namespace %s", e.User.Username, e.Verb, e.ObjectRef.Resource, e.ObjectRef.Name, e.ObjectRef.Namespace)
+		if len(a.Workspace) > 0 && utils.IsExist(resourceInWorkSpace, a.ObjectRef.Resource) {
+			msg = fmt.Sprintf("%s %s %s '%s' in Workspace %s", a.User.Username, a.Verb, a.ObjectRef.Resource, a.ObjectRef.Name, a.Workspace)
+		} else if len(a.Devops) > 0 {
+			msg = fmt.Sprintf("%s %s %s '%s' in Devops %s", a.User.Username, a.Verb, a.ObjectRef.Resource, a.ObjectRef.Name, a.Devops)
+		} else if len(a.ObjectRef.Namespace) > 0 && a.ObjectRef.Resource != "namespaces" && a.ObjectRef.Resource != "federatednamespaces" {
+			msg = fmt.Sprintf("%s %s %s '%s' in Namespace %s", a.User.Username, a.Verb, a.ObjectRef.Resource, a.ObjectRef.Name, a.ObjectRef.Namespace)
 		} else {
-			msg = fmt.Sprintf("%s %s %s '%s'", e.User.Username, e.Verb, e.ObjectRef.Resource, e.ObjectRef.Name)
+			msg = fmt.Sprintf("%s %s %s '%s'", a.User.Username, a.Verb, a.ObjectRef.Resource, a.ObjectRef.Name)
 		}
 	} else {
 		var ps []interface{}
@@ -103,10 +104,10 @@ func (r *Rule) GetMessage(e *Event, m map[string]interface{}, rs map[string]Rule
 			} else {
 				key := p
 				mr, ok := rs[fmt.Sprintf("%s.%s", r.Group, p)]
-				if !ok || mr.Type != TypeAlias {
+				if !ok || mr.Type != KindAlias {
 					mr, ok = rs[key]
 				}
-				if ok && mr.Type == TypeAlias {
+				if ok && mr.Type == KindAlias {
 					key = mr.Alias
 				}
 				ps = append(ps, m[key])
@@ -139,7 +140,7 @@ func (r *Rule) GetCondition(rs map[string]Rule) (string, error) {
 			rule, ok = rs[key]
 		}
 		if ok {
-			switch rule.Type {
+			switch rule.Kind {
 			case KindMacro:
 				c = strings.ReplaceAll(c, s, rule.Macro)
 			case KindAlias:
@@ -189,7 +190,7 @@ func (r *Rule) Print() map[string]interface{} {
 		return nil
 	}
 
-	if r.Type != TypeRule {
+	if r.Type != KindRule {
 		delete(m, "enable")
 
 	}
@@ -257,20 +258,20 @@ func LoadRule(archivingPriority, alertingPriority string, alertingLabels, archiv
 
 	rules := make(map[string]Rule)
 	for _, item := range rl.Items {
-		for _, pr := range item.Spec.PolicyRules {
+		for _, pr := range item.Spec.Rules {
 			r := Rule{}
 			r.labels = make(map[string]string)
 			for k, v := range item.Labels {
 				r.labels[k] = v
 			}
-			r.PolicyRule = pr
+			r.Rule = pr
 			r.Group = item.Name
 			rules[fmt.Sprintf("%s.%s", r.Group, r.Name)] = r
 		}
 	}
 
 	for name, r := range rules {
-		if r.Type == TypeRule {
+		if r.Type == KindRule {
 			// If the condition of item is incorrect, delete this item.
 			c, err := r.GetCondition(rules)
 			if err != nil {

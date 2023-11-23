@@ -1,0 +1,10 @@
+resources:
+- crds.yaml
+- namespace.yaml
+- roles.yaml
+- rules.yaml
+- webhook.yaml
+- operator.yaml
+
+# Change to the namespace you want such as:
+namespace: kubesphere-logging-system

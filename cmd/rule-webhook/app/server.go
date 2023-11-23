@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"rule/pkg/cache"
 	"rule/pkg/config"
 	"rule/pkg/constant"
 	"rule/pkg/rule"
@@ -45,6 +46,7 @@ var (
 	waitHandlerGroup sync.WaitGroup
 	//eventChan        chan *rule.
 	auditingchan    chan *rule.Auditing
+	eventchan  chan *rule.Event
 )
 
 func AddFlags(fs *pflag.FlagSet) {
@@ -77,7 +79,7 @@ func Run() error {
 		glog.Fatal(err)
 	}
 
-	eventChan = make(chan *auditing.Event, constant.ChannelLenMax)
+	auditingchan = make(chan *rule.Auditing, constant.ChannelLenMax)
 	go work()
 
 	return httpServer()
@@ -90,9 +92,9 @@ func httpServer() error {
 	ws.Path("").
 		Consumes(restful.MIME_JSON).
 		Produces(restful.MIME_JSON)
-	ws.Route(ws.POST("/audit/webhook/event").To(handlerEvents))
+	ws.Route(ws.POST("/webhook/auditing/").To(handlerAudits))
 	//  Events received through this API are only used for alerting
-	ws.Route(ws.POST("/audit/webhook/event/alerting").To(handlerAlertingEvents))
+	ws.Route(ws.POST("/webhook/auditing/alerting").To(handlerAlertingAudits))
 	ws.Route(ws.GET("/readiness").To(readiness))
 	ws.Route(ws.GET("/liveness").To(readiness))
 	ws.Route(ws.GET("/preStop").To(preStop))
@@ -118,8 +120,8 @@ func work() {
 	routinesChan := make(chan interface{}, goroutinesNum)
 
 	for {
-		event := <-eventChan
-		if event == nil {
+		audit := <-auditingchan
+		if audit == nil {
 			break
 		}
 
@@ -128,7 +130,7 @@ func work() {
 		case routinesChan <- struct{}{}:
 			cancel()
 		case <-ctx.Done():
-			glog.Errorf("get goroutines for audit %s timeout", event.AuditID)
+			glog.Errorf("get goroutines for audit %s timeout", audit.AuditID)
 			cancel()
 			continue
 		}
@@ -136,7 +138,7 @@ func work() {
 		go func() {
 			stopCh := make(chan interface{}, 1)
 			go func() {
-				eventMatch(event)
+				auditMatch(audit)
 				close(stopCh)
 			}()
 
@@ -146,7 +148,7 @@ func work() {
 			case <-stopCh:
 				break
 			case <-ctx.Done():
-				glog.Errorf("match audit %s timeout", event.AuditID)
+				glog.Errorf("match audit %s timeout", audit.AuditID)
 			}
 
 			<-routinesChan
@@ -154,11 +156,11 @@ func work() {
 	}
 }
 
-func handlerEvents(req *restful.Request, resp *restful.Response) {
+func handlerAudits(req *restful.Request, resp *restful.Response) {
 	handler(req, resp, false)
 }
 
-func handlerAlertingEvents(req *restful.Request, resp *restful.Response) {
+func handlerAlertingAudits(req *restful.Request, resp *restful.Response) {
 	handler(req, resp, true)
 }
 
@@ -175,11 +177,11 @@ func handler(req *restful.Request, resp *restful.Response, alertOnly bool) {
 		return
 	}
 
-	var events []*auditing.Event
+	var audits []*rule.Auditing
 	if alertOnly == false {
-		events, err = auditing.NewEvent(body)
+		audits, err = rule.NewAuditing(body)
 	} else {
-		events, err = auditing.NewAlertEvent(body)
+		audits, err = rule.NewAlertAuditing(body)
 	}
 	if err != nil {
 		err := resp.WriteHeaderAndEntity(http.StatusBadRequest, "")
@@ -189,20 +191,20 @@ func handler(req *restful.Request, resp *restful.Response, alertOnly bool) {
 		return
 	}
 
-	for _, event := range events {
-		if len(event.Workspace) == 0 && event.ObjectRef != nil && len(event.ObjectRef.Namespace) > 0 {
+	for _, audit := range audits {
+		if len(audit.Workspace) == 0 && audit.ObjectRef != nil && len(audit.ObjectRef.Namespace) > 0 {
 			ns := &corev1.Namespace{}
-			if err := cache.Cache().Get(context.Background(), types.NamespacedName{Name: event.ObjectRef.Namespace}, ns); err == nil {
+			if err := cache.Cache().Get(context.Background(), types.NamespacedName{Name: audit.ObjectRef.Namespace}, ns); err == nil {
 				ws, ok := ns.Labels["kubesphere.io/workspace"]
 				if ok {
-					event.Workspace = ws
+					audit.Workspace = ws
 				}
 			}
 		}
 
-		event.SetAlertOnly(alertOnly)
+		audit.SetAlertOnly(alertOnly)
 
-		eventChan <- event
+		auditingchan <- audit
 	}
 
 	err = resp.WriteHeaderAndEntity(http.StatusOK, "")
@@ -214,7 +216,7 @@ func handler(req *restful.Request, resp *restful.Response, alertOnly bool) {
 func Close() {
 	waitHandlerGroup.Wait()
 	glog.Errorf("msg handler close, wait pool close")
-	close(eventChan)
+	close(auditingchan)
 }
 
 // readiness

@@ -41,6 +41,8 @@ type Rule struct {
 	Alias string `json:"alias,omitempty"`
 	// This effective When the rule kind is list.
 	List []string `json:"list,omitempty"`
+	// whizard log type ,auditing/events/logging
+	Type string `json:"type,omitempty"`
 	// Is the rule enable.
 	Enable bool `json:"enable,omitempty"`
 	// The output formatter of message which send to user.

@@ -33,10 +33,13 @@ import (
 )
 
 const (
-	TypeRule  = "rule"
-	TypeMacro = "macro"
-	TypeList  = "list"
-	TypeAlias = "alias"
+	KindRule  = "rule"
+	KindMacro = "macro"
+	KindList  = "list"
+	KindAlias = "alias"
+	AuditingType = "auditing"
+	EventsType = "events"
+	LoggingType = "logging"
 )
 
 type Group struct {
@@ -137,11 +140,11 @@ func (r *Rule) GetCondition(rs map[string]Rule) (string, error) {
 		}
 		if ok {
 			switch rule.Type {
-			case TypeMacro:
+			case KindMacro:
 				c = strings.ReplaceAll(c, s, rule.Macro)
-			case TypeAlias:
+			case KindAlias:
 				c = strings.ReplaceAll(c, s, rule.Alias)
-			case TypeList:
+			case KindList:
 				buf := bytes.Buffer{}
 				buf.WriteString("(")
 				for index, l := range rule.List {

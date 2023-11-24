@@ -93,3 +93,7 @@ func matchRule(a *rule.Auditing) bool {
 
 	return archiving
 }
+
+func eventMatch(event *rule.Event) {
+
+}

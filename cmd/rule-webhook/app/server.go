@@ -45,8 +45,8 @@ var (
 
 	waitHandlerGroup sync.WaitGroup
 	//eventChan        chan *rule.
-	auditingchan    chan *rule.Auditing
-	eventchan  chan *rule.Event
+	auditingChan    chan *rule.Auditing
+	eventChan  chan *rule.Event
 )
 
 func AddFlags(fs *pflag.FlagSet) {
@@ -79,8 +79,10 @@ func Run() error {
 		glog.Fatal(err)
 	}
 
-	auditingchan = make(chan *rule.Auditing, constant.ChannelLenMax)
-	go work()
+	auditingChan = make(chan *rule.Auditing, constant.ChannelLenMax)
+	eventChan = make(chan *rule.Event, constant.ChannelLenMax)
+	go workForAudit()
+	go workForEvents()
 
 	return httpServer()
 }
@@ -92,7 +94,8 @@ func httpServer() error {
 	ws.Path("").
 		Consumes(restful.MIME_JSON).
 		Produces(restful.MIME_JSON)
-	ws.Route(ws.POST("/webhook/auditing/").To(handlerAudits))
+	ws.Route(ws.POST("/webhook/auditing").To(handlerAudits))
+	ws.Route(ws.POST("/webhook/events").To(handlerEvents))
 	//  Events received through this API are only used for alerting
 	ws.Route(ws.POST("/webhook/auditing/alerting").To(handlerAlertingAudits))
 	ws.Route(ws.GET("/readiness").To(readiness))
@@ -116,11 +119,15 @@ func httpServer() error {
 	return err
 }
 
-func work() {
+func handlerEvents(request *restful.Request, response *restful.Response) {
+
+}
+
+func workForAudit() {
 	routinesChan := make(chan interface{}, goroutinesNum)
 
 	for {
-		audit := <-auditingchan
+		audit := <-auditingChan
 		if audit == nil {
 			break
 		}
@@ -155,6 +162,47 @@ func work() {
 		}()
 	}
 }
+
+func workForEvents() {
+	routinesChan := make(chan interface{}, goroutinesNum)
+
+	for {
+		event := <-eventChan
+		if event == nil {
+			break
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*constant.GoroutinesTimeOut)
+		select {
+		case routinesChan <- struct{}{}:
+			cancel()
+		case <-ctx.Done():
+			glog.Errorf("get goroutines for event %s timeout", event.Event.UID)
+			cancel()
+			continue
+		}
+
+		go func() {
+			stopCh := make(chan interface{}, 1)
+			go func() {
+				eventMatch(event)
+				close(stopCh)
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*constant.GoroutinesTimeOut)
+			defer cancel()
+			select {
+			case <-stopCh:
+				break
+			case <-ctx.Done():
+				glog.Errorf("match audit %s timeout", event.Event.UID)
+			}
+
+			<-routinesChan
+		}()
+	}
+}
+
 
 func handlerAudits(req *restful.Request, resp *restful.Response) {
 	handler(req, resp, false)
@@ -204,7 +252,7 @@ func handler(req *restful.Request, resp *restful.Response, alertOnly bool) {
 
 		audit.SetAlertOnly(alertOnly)
 
-		auditingchan <- audit
+		auditingChan <- audit
 	}
 
 	err = resp.WriteHeaderAndEntity(http.StatusOK, "")
@@ -216,7 +264,7 @@ func handler(req *restful.Request, resp *restful.Response, alertOnly bool) {
 func Close() {
 	waitHandlerGroup.Wait()
 	glog.Errorf("msg handler close, wait pool close")
-	close(auditingchan)
+	close(auditingChan)
 }
 
 // readiness

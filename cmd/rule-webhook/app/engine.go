@@ -29,7 +29,7 @@ import (
 
 func auditMatch(a *rule.Auditing) {
 
-	res := matchRule(a)
+	res := matchAuditingRule(a)
 	if !res {
 		return
 	}
@@ -43,7 +43,22 @@ func auditMatch(a *rule.Auditing) {
 	}
 }
 
-func matchRule(a *rule.Auditing) bool {
+func eventMatch(e *rule.Event) {
+	res := matcEventRule(e)
+	if !res {
+		return
+	}
+
+	if res && len(e.Message) > 0 {
+		go exporter.Export(e)
+	}
+
+	if !e.IsAlertOnly() {
+		fmt.Println(e.ToString())
+	}
+}
+
+func matchAuditingRule(a *rule.Auditing) bool {
 
 	m, err := utils.StructToMap(a.Event)
 	if err != nil {
@@ -94,6 +109,3 @@ func matchRule(a *rule.Auditing) bool {
 	return archiving
 }
 
-func eventMatch(event *rule.Event) {
-
-}

@@ -49,7 +49,7 @@ func eventMatch(e *rule.Event) {
 		return
 	}
 
-	if res && len(e.Message) > 0 {
+	if res && len(e.) > 0 {
 		go exporter.Export(e)
 	}
 

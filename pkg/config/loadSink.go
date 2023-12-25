@@ -20,7 +20,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang/glog"
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"

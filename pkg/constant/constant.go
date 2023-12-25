@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,40 +17,36 @@ limitations under the License.
 package constant
 
 const (
-	KeyFile  = "/etc/kube/auditing/tls.key"
-	CertFile = "/etc/kube/auditing/tls.crt"
+	KeyFile  = "/etc/kube/rule/tls.key"
+	CertFile = "/etc/kube/rule/tls.crt"
 )
 
 const (
-	ChannelLenMax     = 10000
+	ChannelLenMax     = 1000
 	GoroutinesNumMax  = 10
 	GoroutinesTimeOut = 5
 )
 
 const (
-	Warning = "WARNING"
-	Info    = "INFO"
-	Debug   = "DEBUG"
+	Info     = "INFO"
+	Warning  = "WARNING"
+	ERROR    = "ERROR"
+	CRITICAL = "CRITICAL"
 )
 
 const (
+	Event    = "Event"
+	Logging  = "Logging"
+	Auditing = "Auditing"
+)
+
+const (
+	WhizardTelemetryRuler      = "whizard-telemetry-ruler"
 	WebhookReceiver            = "webhook"
 	AlertManagerReciver        = "alertmanager"
 	NotificationManagerReciver = "notificationmanager"
 )
 
 const (
-	DefaultNamespace      = "kubesphere-logging-system"
-	DefaultWebhookImage   = "kubespheredev/kube-auditing-webhook:latest"
-	DefaultWebhook        = "kube-auditing-webhook"
-	DefaultServiceAccount = "kube-auditing-operator"
-)
-
-const (
-	Alerting  = "alerting"
-	Archiving = "archiving"
-)
-
-const (
-	FluentBitLogLenMax = 16384
+	DefaultNamespace = "kubesphere-logging-system"
 )

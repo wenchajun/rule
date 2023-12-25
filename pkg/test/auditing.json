@@ -1,0 +1,35 @@
+[
+ {     "AuditID":"5fd390e0-e279-48c3-ab3a-bdd1cc9a0897",
+      "Cluster":"",
+      "Devops":"",
+      "Level":"Metadata",
+      "Message":"admin create namespaces 'ns' in Workspace ws",
+      "ObjectRef":{
+        "APIGroup":"tenant.kubesphere.io",
+        "APIVersion":"v1alpha2",
+        "Name":"ns",
+        "Namespace":"",
+        "Resource":"namespaces",
+        "ResourceVersion":"Workspace",
+        "Subresource":"",
+        "UID":""
+      },
+      "RequestReceivedTimestamp":"2021-11-19T16:45:30.234543+08:00",
+      "RequestURI":"/kapis/tenant.kubesphere.io/v1alpha2/workspaces/ws/namespaces",
+      "ResponseObject":"",
+      "ResponseStatus":{
+        "code":200,
+        "metadata":{
+
+        }
+      },
+      "Stage":"ResponseComplete",
+      "StageTimestamp":"2021-11-19T16:45:30.246563+08:00",
+      "User":{
+        "UID":"",
+        "Username":"admin"
+      },
+      "Verb":"create",
+      "Workspace":"ws"
+ }
+]

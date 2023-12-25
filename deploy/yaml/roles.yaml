@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: whizard-telemetry-ruler
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: whizard-telemetry-ruler
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - pods
+      - secrets
+      - namespaces
+      - configmaps
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+
+  - apiGroups:
+      - logging.whizard.io
+    resources:
+      - clusterrulegroups
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: whizard-telemetry-ruler
+subjects:
+  - kind: ServiceAccount
+    name: whizard-telemetry-ruler
+    namespace: kubesphere-logging-system
+roleRef:
+  kind: ClusterRole
+  name: whizard-telemetry-ruler
+  apiGroup: rbac.authorization.k8s.io

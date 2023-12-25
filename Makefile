@@ -1,11 +1,10 @@
-# Copyright 2018 The KubeSphere Authors. All rights reserved.
+# Copyright 2023 The KubeSphere Authors. All rights reserved.
 # Use of this source code is governed by a Apache license
 # that can be found in the LICENSE file.
 #
 VERSION?=$(shell cat VERSION | tr -d " \t\n\r")
 # Image URL to use all building/pushing image targets
-IMG_WEBHOOK ?= kubesphere/kube-auditing-webhook:$(VERSION)
-IMG_OP ?= kubesphere/kube-auditing-operator:$(VERSION)
+IMG_RULER ?= kubesphere/whizard-telemetry-ruler:$(VERSION)
 AMD64 ?= -amd64
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
@@ -66,27 +65,20 @@ test: manifests generate fmt vet ## Run tests.
 
 build: build-op build-webhook ## Build docker image with the openfunction.
 
-build-op: test
-	docker buildx build --platform linux/amd64,linux/arm64 --push -f build/kube-auditing-operator/Dockerfile -t ${IMG_OP} .
 
-build-webhook: test
-	docker buildx build --platform linux/amd64,linux/arm64 --push -f build/kube-auditing-webhook/Dockerfile -t ${IMG_WEBHOOK} .
+build-ruler: test
+	docker buildx build --platform linux/amd64,linux/arm64 --push -f build/whizard-telemetry-ruler/Dockerfile -t ${IMG_WEBHOOK} .
 
 # Build all docker images for amd64
-build-amd64: build-op-amd64 build-webhook-amd64
+build-amd64:  build-ruler-amd64
 
 # Build the docker image for amd64
-build-op-amd64: test
-	docker build -f build/kube-auditing-operator/Dockerfile . -t ${IMG_OP}${AMD64}
-
-# Build the docker image for amd64
-build-webhook-amd64: test
-	docker build -f build/kube-auditing-webhook/Dockerfile . -t ${IMG_WEBHOOK}${AMD64}
+build-ruler-amd64: test
+	docker build -f build/whizard-telemetry-ruler/Dockerfile . -t ${IMG_RULER}${AMD64}
 
 # Push the docker image
 push-amd64:
-	docker push ${IMG_OP}${AMD64}
-	docker push ${IMG_WEBHOOK}${AMD64}
+	docker push ${IMG_RULER}${AMD64}
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.

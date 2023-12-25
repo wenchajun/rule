@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 
 // Package v1alpha1 contains API Schema definitions for the audit v1alpha1 API group
 // +k8s:deepcopy-gen=package,register
-// +groupName=auditing.kubesphere.io
+// +groupName=logging.whizard.io
 package v1alpha1
 
 import (

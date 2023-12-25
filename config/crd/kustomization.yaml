@@ -2,8 +2,7 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-  - bases/auditing.kubesphere.io_rules.yaml
-  - bases/auditing.kubesphere.io_webhooks.yaml
+  - bases/logging.whizard.io_clusterrulegroups.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # patchesStrategicMerge:

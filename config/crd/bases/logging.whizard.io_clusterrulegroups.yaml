@@ -1,0 +1,108 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: clusterrulegroups.logging.whizard.io
+spec:
+  group: logging.whizard.io
+  names:
+    kind: ClusterRuleGroup
+    listKind: ClusterRuleGroupList
+    plural: clusterrulegroups
+    shortNames:
+    - crg
+    singular: clusterrulegroup
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ClusterRuleGroup is the Schema for the rules API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RuleSpec defines the desired state of ClusterRuleGroup.
+            properties:
+              rules:
+                items:
+                  properties:
+                    alerts:
+                      properties:
+                        annotations:
+                          additionalProperties:
+                            type: string
+                          description: Values of Annotations can use format string
+                            with the fields of the event.
+                          type: object
+                        message:
+                          description: The output formatter of message which send
+                            to user.
+                          type: string
+                        severity:
+                          description: Rule priority, INFO,WARNING,ERROR,CRITICAL.
+                          type: string
+                      type: object
+                    desc:
+                      description: Rule describe.
+                      type: string
+                    enable:
+                      description: Is the rule enable.
+                      type: boolean
+                    expr:
+                      description: Expression of the rule
+                      properties:
+                        alias:
+                          description: This effective When the rule kind is alias.
+                          type: string
+                        condition:
+                          description: Rule condition This effective When the rule
+                            kind is rule.
+                          type: string
+                        kind:
+                          description: Rule kind, rule, macro,list,alias.
+                          type: string
+                        list:
+                          description: This effective When the rule kind is list.
+                          items:
+                            type: string
+                          type: array
+                        macro:
+                          description: This effective When the rule kind is macro.
+                          type: string
+                      type: object
+                    name:
+                      description: Rule name.
+                      type: string
+                  type: object
+                type: array
+              type:
+                description: whizard log type ,auditing/events/logging
+                type: string
+            type: object
+          status:
+            description: RuleStatus defines the observed state of ClusterRuleGroup.
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

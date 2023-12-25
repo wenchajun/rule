@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,15 +23,9 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type Rule struct {
-	// Rule name.
-	Name string `json:"name,omitempty"`
+type Expr struct {
 	// Rule kind, rule, macro,list,alias.
 	Kind string `json:"kind,omitempty"`
-	// Rule describe.
-	Summary string `json:"summary,omitempty"`
-	// Rule describe in Chinese.
-	SummaryCN string `json:"summary,omitempty"`
 	// Rule condition
 	// This effective When the rule kind is rule.
 	Condition string `json:"condition,omitempty"`
@@ -41,20 +35,34 @@ type Rule struct {
 	Alias string `json:"alias,omitempty"`
 	// This effective When the rule kind is list.
 	List []string `json:"list,omitempty"`
-	// whizard log type ,auditing/events/logging
-	Type string `json:"type,omitempty"`
+}
+
+type Alerts struct {
+	// Values of Annotations can use format string with the fields of the event.
+	Annotations map[string]string `json:"annotations,omitempty"`
+	// The output formatter of message which send to user.
+	Message string `json:"message,omitempty"`
+	// Rule priority, INFO,WARNING,ERROR,CRITICAL.
+	Severity string `json:"severity,omitempty"`
+}
+
+type Rule struct {
+	// Rule name.
+	Name string `json:"name,omitempty"`
+
+	// Rule describe.
+	Desc string `json:"desc,omitempty"`
+	// Expression of the rule
+	Expr   Expr   `json:"expr,omitempty"`
+	Alerts Alerts `json:"alerts,omitempty"`
 	// Is the rule enable.
 	Enable bool `json:"enable,omitempty"`
-	// The output formatter of message which send to user.
-	Output string `json:"output,omitempty"`
-	// Rule priority, DEBUG, INFO, WARNING.
-	Priority string `json:"priority,omitempty"`
-	//Where log information is exported to
-	Exporter []string `json:"exporteer,omitempty"`
 }
 
 // RuleSpec defines the desired state of ClusterRuleGroup.
 type ClusterRuleGroupRuleSpec struct {
+	// whizard log type ,auditing/events/logging
+	Type  string `json:"type,omitempty"`
 	Rules []Rule `json:"rules,omitempty"`
 }
 
@@ -77,12 +85,12 @@ type ClusterRuleGroup struct {
 // +kubebuilder:object:root=true
 
 // RuleList contains a list of Rule
-type RuleList struct {
+type ClusterRuleGroupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ClusterRuleGroup `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterRuleGroup{}, &RuleList{})
+	SchemeBuilder.Register(&ClusterRuleGroup{}, &ClusterRuleGroupList{})
 }

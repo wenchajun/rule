@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,12 +21,17 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/golang/glog"
+	alertType "github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 	"io"
 	"io/ioutil"
-
 	"net/http"
 	"strings"
 	"time"
+	"whizard-telemetry-ruler/pkg/constant"
+	"whizard-telemetry-ruler/pkg/rule"
+	"whizard-telemetry-ruler/pkg/utils"
 )
 
 const (
@@ -52,7 +57,7 @@ func init() {
 }
 
 // NewWebhookClient create a webhook exporter.
-func NewWebhookClient(receiver *v1alpha1.Receiver) (AuditExporter, error) {
+func NewWebhookClient(receiver *Receiver) (Exporters, error) {
 
 	wh := &WebhookExporter{}
 
@@ -68,9 +73,80 @@ func (wh *WebhookExporter) Connect() error {
 	return nil
 }
 
-func (wh *WebhookExporter) Export(e *auditing.Event) error {
+func (wh *WebhookExporter) ExportAuditingAlerts(a *rule.Auditing) error {
+	msg := a.Annotations
+	msgKey := "message"
+	msgValue := a.Message
+	if existingValue, exists := msg[msgKey]; exists {
+		fmt.Printf("Key '%s' already exists with value: %s,Please change the annotation field to another field \n", msg, existingValue)
+	} else {
+		msg[msgKey] = msgValue
+	}
+	var alert alertType.Alert
+	msgSet := make(model.LabelSet)
+	for k, v := range msg {
+		msgSet[model.LabelName(k)] = model.LabelValue(v)
+	}
+	alert.Annotations = msgSet
+	alert.Labels = map[model.LabelName]model.LabelValue{
+		"namespace":                model.LabelValue(a.ObjectRef.Namespace),
+		"resource":                 model.LabelValue(a.ObjectRef.Resource),
+		"name":                     model.LabelValue(a.ObjectRef.Name),
+		"user":                     model.LabelValue(a.User.Username),
+		"group":                    model.LabelValue(utils.OutputAsJson(a.User.Groups)),
+		"verb":                     model.LabelValue(a.Verb),
+		"alerttype":                "auditing",
+		"alertname":                model.LabelValue(a.GetAlertRuleName()),
+		"requestReceivedTimestamp": model.LabelValue(a.RequestReceivedTimestamp.String()),
+	}
 
-	request, err := http.NewRequest(http.MethodPost, wh.URL, bytes.NewBuffer([]byte(e.ToString())))
+	request, err := http.NewRequest(http.MethodPost, wh.URL, bytes.NewBuffer([]byte(alert.String())))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := wh.Client.Do(request)
+	if err != nil {
+		return err
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s", response.Status)
+	}
+
+	// Discard the body
+	_, _ = io.Copy(ioutil.Discard, response.Body)
+
+	return nil
+}
+
+func (wh *WebhookExporter) ExportEventAlerts(e *rule.Event) error {
+
+	msg := e.Annotations
+	msgKey := "message"
+	msgValue := e.Message
+	if existingValue, exists := msg[msgKey]; exists {
+		fmt.Printf("Key '%s' already exists with value: %s,Please change the annotation field to another field \n", msg, existingValue)
+	} else {
+		msg[msgKey] = msgValue
+	}
+	var alert alertType.Alert
+	msgSet := make(model.LabelSet)
+	for k, v := range msg {
+		msgSet[model.LabelName(k)] = model.LabelValue(v)
+	}
+	alert.Annotations = msgSet
+	alert.Labels = map[model.LabelName]model.LabelValue{
+		"namespace": model.LabelValue(e.Event.Namespace),
+		"reason":    model.LabelValue(e.Event.Reason),
+		"name":      model.LabelValue(e.Event.Name),
+		"user":      model.LabelValue(e.Event.Source.Host),
+		"group":     model.LabelValue(utils.OutputAsJson(e.Event.Series)),
+		"alerttype": "events",
+		"alertname": model.LabelValue(e.GetAlertRuleName()),
+	}
+
+	request, err := http.NewRequest(http.MethodPost, wh.URL, bytes.NewBuffer([]byte(alert.String())))
 	if err != nil {
 		return err
 	}
@@ -91,7 +167,7 @@ func (wh *WebhookExporter) Export(e *auditing.Event) error {
 }
 
 // Reconnect only reset the webhook url and ca.
-func (wh *WebhookExporter) Reconnect(receiver *v1alpha1.Receiver) error {
+func (wh *WebhookExporter) Reconnect(receiver *Receiver) error {
 
 	err := wh.GetHttpConfig(receiver)
 	if err != nil {
@@ -101,10 +177,10 @@ func (wh *WebhookExporter) Reconnect(receiver *v1alpha1.Receiver) error {
 	return nil
 }
 
-func (wh *WebhookExporter) GetHttpConfig(receiver *v1alpha1.Receiver) error {
+func (wh *WebhookExporter) GetHttpConfig(receiver *Receiver) error {
 
 	if receiver == nil || receiver.ReceiverType != constant.WebhookReceiver {
-		fmt.Println(receiver)
+		glog.Error(receiver)
 		return fmt.Errorf("no webhook receiver config")
 	}
 
@@ -178,7 +254,7 @@ func (wh *WebhookExporter) Type() string {
 	return constant.WebhookReceiver
 }
 
-func (wh *WebhookExporter) DeepEqual(_ *v1alpha1.Receiver) bool {
+func (wh *WebhookExporter) DeepEqual(_ *Receiver) bool {
 
 	return false
 }

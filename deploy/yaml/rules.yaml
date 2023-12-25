@@ -1,0 +1,110 @@
+---
+apiVersion: logging.whizard.io/v1alpha1
+kind: ClusterRuleGroup
+metadata:
+  name: example-rule
+spec:
+  type: auditing
+  rules:
+    - name: ignore-action
+      expr:
+        kind: list
+        list:
+          - get
+          - list
+          - watch
+      desc: all action not need to be audit
+    - name: action
+      expr:
+        kind: list
+        list:
+          - create
+          - delete
+          - update
+          - patch
+      desc: all operator need to be audit
+    - name: pod
+      expr:
+        kind: macro
+        macro: ObjectRef.Resource="pods"
+      desc: pod
+    - name: service
+      expr:
+        kind: macro
+        macro: ObjectRef.Resource="services"
+      desc: service
+    - name: user
+      expr:
+        kind: alias
+        alias: User.username
+      desc: the alias of the user related to audit event
+    - name: name
+      expr:
+        kind: alias
+        alias: ObjectRef.Name
+      desc: the alias of the resource name
+    - name: namespace
+      expr:
+        kind: alias
+        alias: ObjectRef.Namespace
+      desc: the alias of the resource namespace
+    - name: create
+      expr:
+        kind: macro
+        macro: Verb = "create"
+      desc: create operator
+    - name: ResourceChange
+      expr:
+        kind: rule
+        condition: Verb in ${action}
+      desc: audit the change of resource
+      enable: true
+      alerts:
+        severity: INFO
+    - name: CreateHostnetworkPod
+      expr:
+        kind: rule
+        condition: ${pod} and ${create} and RequestObject.spec.hostNetwork = true
+      desc: Detect an attempt to start a pod using the host network
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: creat hostnetwork pod
+          summaryCn: 创建 hostnetwork 容器
+        message: ${user} ${Verb} HostNetwork Pod ${name} in Namespace ${namespace}.
+      enable: true
+    - name: CreateHostportPod
+      expr:
+        kind: rule
+        condition: ${pod} and ${create} and (RequestObject.spec.containers[*].ports[*].hostPort > 0 or RequestObject.spec.initContainers[*].ports[*].hostPort > 0)
+      desc: Detect an attempt to start a pod mount to a host port
+      enable: true
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: creat hostport pod
+          summaryCn: 创建 hostport 容器
+        message: ${user} ${Verb} HostPort Pod ${name} in Namespace ${namespace}.
+    - name: CreateNodeportService
+      expr:
+        kind: rule
+        condition: ${service} and ${create} and RequestObject.spec.ports[*].nodePort > 0
+      desc: Detect an attempt to start a service with a NodePort service type
+      enable: true
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: creat hostnetwork pod
+          summaryCn: 创建 hostnetwork 容器
+        message: ${user} ${Verb} NodePort Service ${name} in Namespace ${namespace}.
+    - name: AttachOrExecPod
+      expr:
+        kind: rule
+        condition: ${pod} and ${create} and ObjectRef.Subresource in ("exec", "attach")
+      desc: Detect any attempt to attach/exec to a pod
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: attach or exec pod
+          summaryCn: 进入容器
+        message: ${user} ${ObjectRef.Subresource} Pod ${name} in Namespace ${namespace}.

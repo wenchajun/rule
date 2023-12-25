@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: whizard-telemetry-ruler-svc
+  namespace: kubesphere-logging-system
+spec:
+  ports:
+    - name: event
+      protocol: TCP
+      port: 6443
+      targetPort: 6443
+  selector:
+    app: whizard-telemetry-ruler
+  type: ClusterIP

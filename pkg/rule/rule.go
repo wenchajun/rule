@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"rule/pkg/apis/logging.whizard.io/v1alpha1"
-	"rule/pkg/cache"
-	"rule/pkg/constant"
-	"rule/pkg/utils"
+	"whizard-telemetry-ruler/pkg/apis/logging.whizard.io/v1alpha1"
+	"whizard-telemetry-ruler/pkg/cache"
+	"whizard-telemetry-ruler/pkg/constant"
+	"whizard-telemetry-ruler/pkg/utils"
 
 	"regexp"
 	"strconv"
@@ -34,14 +34,20 @@ import (
 )
 
 const (
-	KindRule  = "rule"
-	KindMacro = "macro"
-	KindList  = "list"
-	KindAlias = "alias"
+	KindRule     = "rule"
+	KindMacro    = "macro"
+	KindList     = "list"
+	KindAlias    = "alias"
 	AuditingType = "auditing"
-	EventsType = "events"
-	LoggingType = "logging"
+	EventsType   = "events"
+	LoggingType  = "logging"
 )
+
+type WhizardEvent struct {
+	Kind     string
+	Event    *Event
+	Auditing *Auditing
+}
 
 type Group struct {
 	// Group name, also the name of the instance of CRD Rule which this rule in.
@@ -54,13 +60,10 @@ type Rule struct {
 	// The name of group which this rule in.
 	Group string
 	v1alpha1.Rule
-	// Whether this rule will trigger alert or not.
-	alerting bool
-	// Whether the audit event matched this rule will be archived or not.
-	archiving bool
-	labels    map[string]string
-	format    string
-	params    []string
+	labels      map[string]string
+	whizardEventType string
+	format      string
+	params      []string
 }
 
 var resourceInWorkSpace = []string{
@@ -72,10 +75,10 @@ var resourceInWorkSpace = []string{
 	"workspacemembers",
 }
 
-func (r *Rule) GetMessage(a *Auditing, m map[string]interface{}, rs map[string]Rule) string {
+func (r *Rule) GetAuditingAlertMessage(a *Auditing, m map[string]interface{}, rs map[string]Rule) (string, map[string]string) {
 
 	var msg string
-	if len(r.Output) == 0 {
+	if len(r.Rule.Alerts.Message) == 0 {
 		if len(a.Workspace) > 0 && utils.IsExist(resourceInWorkSpace, a.ObjectRef.Resource) {
 			msg = fmt.Sprintf("%s %s %s '%s' in Workspace %s", a.User.Username, a.Verb, a.ObjectRef.Resource, a.ObjectRef.Name, a.Workspace)
 		} else if len(a.Devops) > 0 {
@@ -104,11 +107,11 @@ func (r *Rule) GetMessage(a *Auditing, m map[string]interface{}, rs map[string]R
 			} else {
 				key := p
 				mr, ok := rs[fmt.Sprintf("%s.%s", r.Group, p)]
-				if !ok || mr.Type != KindAlias {
+				if !ok || mr.Expr.Kind != KindAlias {
 					mr, ok = rs[key]
 				}
-				if ok && mr.Type == KindAlias {
-					key = mr.Alias
+				if ok && mr.Expr.Kind == KindAlias {
+					key = mr.Expr.Alias
 				}
 				ps = append(ps, m[key])
 			}
@@ -116,12 +119,59 @@ func (r *Rule) GetMessage(a *Auditing, m map[string]interface{}, rs map[string]R
 		msg = fmt.Sprintf(r.format, ps...)
 	}
 
-	return msg
+	an := make(map[string]string)
+	for k, v := range r.Alerts.Annotations {
+		an[k] = v
+	}
+	return msg, an
+}
+
+func (r *Rule) GetEventAlertMessage(e *Event, m map[string]interface{}, rs map[string]Rule) (string, map[string]string) {
+
+	var msg string
+	if len(r.Alerts.Message) == 0 {
+		msg = fmt.Sprintf("%s'", e.Event.Message)
+	} else {
+		var ps []interface{}
+		for _, p := range r.params {
+			if strings.HasPrefix(p, "$") {
+				index, err := strconv.Atoi(p[1:])
+				if err != nil {
+					glog.Error(err)
+					ps = append(ps, "")
+				}
+
+				ss := strings.Split(m["involvedObject.Name"].(string), ":")
+				if index-1 < len(ss) {
+					ps = append(ps, ss[index-1])
+				} else {
+					ps = append(ps, "")
+				}
+			} else {
+				key := p
+				mr, ok := rs[fmt.Sprintf("%s.%s", r.Group, p)]
+				if !ok || mr.Expr.Kind != KindAlias {
+					mr, ok = rs[key]
+				}
+				if ok && mr.Expr.Kind == KindAlias {
+					key = mr.Expr.Alias
+				}
+				ps = append(ps, m[key])
+			}
+		}
+		msg = fmt.Sprintf(r.format, ps...)
+	}
+
+	an := make(map[string]string)
+	for k, v := range r.Alerts.Annotations {
+		an[k] = v
+	}
+	return msg, an
 }
 
 func (r *Rule) GetCondition(rs map[string]Rule) (string, error) {
 
-	c := r.Condition
+	c := r.Rule.Expr.Condition
 	regex, err := regexp.Compile("\\${(.*?)}")
 	if err != nil {
 		return c, err
@@ -140,19 +190,19 @@ func (r *Rule) GetCondition(rs map[string]Rule) (string, error) {
 			rule, ok = rs[key]
 		}
 		if ok {
-			switch rule.Kind {
+			switch rule.Expr.Kind {
 			case KindMacro:
-				c = strings.ReplaceAll(c, s, rule.Macro)
+				c = strings.ReplaceAll(c, s, rule.Expr.Macro)
 			case KindAlias:
-				c = strings.ReplaceAll(c, s, rule.Alias)
+				c = strings.ReplaceAll(c, s, rule.Expr.Alias)
 			case KindList:
 				buf := bytes.Buffer{}
 				buf.WriteString("(")
-				for index, l := range rule.List {
+				for index, l := range rule.Expr.List {
 					buf.WriteString("\"")
 					buf.WriteString(l)
 					buf.WriteString("\"")
-					if index != len(rule.List)-1 {
+					if index != len(rule.Expr.List)-1 {
 						buf.WriteString(",")
 					}
 				}
@@ -167,22 +217,6 @@ func (r *Rule) GetCondition(rs map[string]Rule) (string, error) {
 	return c, nil
 }
 
-func (r *Rule) IsAlerting() bool {
-	return r.alerting
-}
-
-func (r *Rule) SetAlerting(b bool) {
-	r.alerting = b
-}
-
-func (r *Rule) IsArchiving() bool {
-	return r.archiving
-}
-
-func (r *Rule) SetArchiving(b bool) {
-	r.archiving = b
-}
-
 func (r *Rule) Print() map[string]interface{} {
 
 	m, err := utils.StructToMap(r)
@@ -190,7 +224,7 @@ func (r *Rule) Print() map[string]interface{} {
 		return nil
 	}
 
-	if r.Type != KindRule {
+	if r.Expr.Kind != KindRule {
 		delete(m, "enable")
 
 	}
@@ -204,7 +238,7 @@ func (r *Rule) SetParams() {
 		return
 	}
 
-	op := r.Output
+	op := r.Alerts.Message
 	if len(op) == 0 {
 		return
 	}
@@ -227,51 +261,56 @@ func (r *Rule) SetParams() {
 	r.params = ps
 }
 
-func (r *Rule) PriorityGreater(priority string) bool {
-	return ordPriority(r.Priority) > ordPriority(priority)
+func (r *Rule) SeverityHigherThan(severity string) bool {
+	return ordPriority(r.Alerts.Severity) > ordPriority(severity)
 }
 
-func (r *Rule) PriorityGreaterOrEqual(priority string) bool {
-	return ordPriority(r.Priority) >= ordPriority(priority)
+func (r *Rule) SeverityHigherOrEqualTo (severity string) bool {
+	return ordPriority(r.Alerts.Severity) >= ordPriority(severity)
 }
 
 func ordPriority(priority string) int {
 	switch priority {
-	case constant.Debug:
-		return 1
 	case constant.Info:
-		return 2
+		return 1
 	case constant.Warning:
+		return 2
+	case constant.ERROR:
 		return 3
+	case constant.CRITICAL:
+		return 4
 	default:
 		return 0
 	}
 }
 
-// LoadRule load rule policy from Rules.
-func LoadRule(archivingPriority, alertingPriority string, alertingLabels, archivingLabels map[string]string) (map[string]Rule, error) {
+func (r *Rule) GetEventType() string {
+	return r.whizardEventType
+}
 
-	rl := &v1alpha1.RuleList{}
+
+// LoadRule load rule policy from Rules.
+func LoadRule() (map[string]Rule, error) {
+
+	rl := &v1alpha1.ClusterRuleGroupList{}
 	if err := cache.Cache().List(context.Background(), rl); err != nil {
 		return nil, err
 	}
 
 	rules := make(map[string]Rule)
 	for _, item := range rl.Items {
+		outputType := item.Spec.Type
 		for _, pr := range item.Spec.Rules {
 			r := Rule{}
-			r.labels = make(map[string]string)
-			for k, v := range item.Labels {
-				r.labels[k] = v
-			}
 			r.Rule = pr
+			r.whizardEventType = outputType
 			r.Group = item.Name
 			rules[fmt.Sprintf("%s.%s", r.Group, r.Name)] = r
 		}
 	}
 
 	for name, r := range rules {
-		if r.Type == KindRule {
+		if r.Expr.Kind == KindRule {
 			// If the condition of item is incorrect, delete this item.
 			c, err := r.GetCondition(rules)
 			if err != nil {
@@ -288,19 +327,6 @@ func LoadRule(archivingPriority, alertingPriority string, alertingLabels, archiv
 		}
 
 		r.SetParams()
-
-		if utils.IsLabelsContains(r.labels, alertingLabels) {
-			r.SetArchiving(true)
-			if r.PriorityGreaterOrEqual(alertingPriority) {
-				r.SetAlerting(true)
-			}
-		}
-
-		if utils.IsLabelsContains(r.labels, archivingLabels) &&
-			r.PriorityGreaterOrEqual(archivingPriority) {
-			r.SetArchiving(true)
-		}
-
 		rules[name] = r
 	}
 

@@ -1,5 +1,5 @@
 apiVersion: v1
-appVersion: 0.2.0
-description: A audit tool for kubesphere
-name: kube-auditing
-version: 0.2.0
+appVersion: 0.1.0
+description: whizard-telemetry-ruler is a processing handler designed for handling audits, logs, and events
+name: whizard-telemetry-ruler
+version: 0.1.0

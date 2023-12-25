@@ -1,0 +1,71 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: whizard-telemetry-ruler
+  namespace: kubesphere-logging-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whizard-telemetry-ruler
+  template:
+    metadata:
+      labels:
+        app: whizard-telemetry-ruler
+    spec:
+      serviceAccountName: whizard-telemetry-ruler
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: cert
+          secret:
+            secretName: whizard-telemetry-ruler-secret
+            defaultMode: 420
+        - name: host-time
+          hostPath:
+            path: /etc/localtime
+            type: ''
+      containers:
+        - name: whizard-telemetry-ruler
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - whizard-telemetry-ruler
+          args:
+             {{- toYaml .Values.args | nindent 12}}
+          resources:
+             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: cert
+              readOnly: true
+              mountPath: /etc/kube/rule
+            - name: host-time
+              readOnly: true
+              mountPath: /etc/localtime
+          livenessProbe:
+            httpGet:
+              path: /readiness
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+

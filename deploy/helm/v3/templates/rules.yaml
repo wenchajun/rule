@@ -1,99 +1,111 @@
-apiVersion: auditing.kubesphere.io/v1alpha1
-kind: Rule
-metadata:
-  name: archiving-rule
-  labels:
-    workspace: system-workspace
-    type: archiving
-spec:
-  rules:
-    - name: ignore-action
-      type: list
-      desc: all action not need to be audit
-      list:
-        - get
-        - list
-        - watch
-    - name: archiving
-      type: rule
-      desc: All audit event except get, list, watch event
-      condition: Verb not in ${ignore-action}
-      enable: true
-      priority: DEBUG
 
 ---
-apiVersion: auditing.kubesphere.io/v1alpha1
-kind: Rule
+apiVersion: logging.whizard.io/v1alpha1
+kind: ClusterRuleGroup
 metadata:
-  name: alerting-rule
-  labels:
-    workspace: system-workspace
-    type: alerting
+  name: example-rule
 spec:
+  type: auditing
   rules:
+    - name: ignore-action
+      expr:
+        kind: list
+        list:
+          - get
+          - list
+          - watch
+      desc: all action not need to be audit
     - name: action
-      type: list
+      expr:
+        kind: list
+        list:
+          - create
+          - delete
+          - update
+          - patch
       desc: all operator need to be audit
-      list:
-        - create
-        - delete
-        - update
-        - patch
     - name: pod
-      type: macro
+      expr:
+        kind: macro
+        macro: ObjectRef.Resource="pods"
       desc: pod
-      macro: ObjectRef.Resource="pods"
     - name: service
-      type: macro
+      expr:
+        kind: macro
+        macro: ObjectRef.Resource="services"
       desc: service
-      macro: ObjectRef.Resource="services"
     - name: user
-      type: alias
+      expr:
+        kind: alias
+        alias: User.username
       desc: the alias of the user related to audit event
-      alias: User.username
     - name: name
-      type: alias
+      expr:
+        kind: alias
+        alias: ObjectRef.Name
       desc: the alias of the resource name
-      alias: ObjectRef.Name
     - name: namespace
-      type: alias
+      expr:
+        kind: alias
+        alias: ObjectRef.Namespace
       desc: the alias of the resource namespace
-      alias: ObjectRef.Namespace
     - name: create
-      type: macro
+      expr:
+        kind: macro
+        macro: Verb = "create"
       desc: create operator
-      macro: Verb = "create"
     - name: ResourceChange
-      type: rule
+      expr:
+        kind: rule
+        condition: Verb in ${action}
       desc: audit the change of resource
-      condition: Verb in ${action}
       enable: true
-      priority: INFO
+      alerts:
+        severity: INFO
     - name: CreateHostnetworkPod
-      type: rule
+      expr:
+        kind: rule
+        condition: ${pod} and ${create} and RequestObject.spec.hostNetwork = true
       desc: Detect an attempt to start a pod using the host network
-      condition: ${pod} and ${create} and RequestObject.spec.hostNetwork = true
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: creat hostnetwork pod
+          summaryCn: 创建 hostnetwork 容器
+        message: ${user} ${Verb} HostNetwork Pod ${name} in Namespace ${namespace}.
       enable: true
-      output: ${user} ${Verb} HostNetwork Pod ${name} in Namespace ${namespace}.
-      priority: WARNING
     - name: CreateHostportPod
-      type: rule
+      expr:
+        kind: rule
+        condition: ${pod} and ${create} and (RequestObject.spec.containers[*].ports[*].hostPort > 0 or RequestObject.spec.initContainers[*].ports[*].hostPort > 0)
       desc: Detect an attempt to start a pod mount to a host port
-      condition: ${pod} and ${create} and (RequestObject.spec.containers[*].ports[*].hostPort > 0 or RequestObject.spec.initContainers[*].ports[*].hostPort > 0)
       enable: true
-      output: ${user} ${Verb} HostNetPort Pod ${name} in Namespace ${namespace}.
-      priority: WARNING
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: creat hostport pod
+          summaryCn: 创建 hostport 容器
+        message: ${user} ${Verb} HostPort Pod ${name} in Namespace ${namespace}.
     - name: CreateNodeportService
-      type: rule
+      expr:
+        kind: rule
+        condition: ${service} and ${create} and RequestObject.spec.ports[*].nodePort > 0
       desc: Detect an attempt to start a service with a NodePort service type
-      condition: ${service} and ${create} and RequestObject.spec.ports[*].nodePort > 0
       enable: true
-      output: ${user} ${Verb} NodePort Service ${name} in Namespace ${namespace}.
-      priority: WARNING
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: creat hostnetwork pod
+          summaryCn: 创建 hostnetwork 容器
+        message: ${user} ${Verb} NodePort Service ${name} in Namespace ${namespace}.
     - name: AttachOrExecPod
-      type: rule
+      expr:
+        kind: rule
+        condition: ${pod} and ${create} and ObjectRef.Subresource in ("exec", "attach")
       desc: Detect any attempt to attach/exec to a pod
-      condition: ${pod} and ${create} and ObjectRef.Subresource in ("exec", "attach")
-      enable: true
-      output: ${user} ${ObjectRef.Subresource} Pod ${name} in Namespace ${namespace}.
-      priority: WARNING
+      alerts:
+        severity: WARNING
+        annotations:
+          summary: attach or exec pod
+          summaryCn: 进入容器
+        message: ${user} ${ObjectRef.Subresource} Pod ${name} in Namespace ${namespace}.

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,9 +19,13 @@ package exporter
 import (
 	"bytes"
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/prometheus/alertmanager/template"
 	"io"
 	"io/ioutil"
+	"whizard-telemetry-ruler/pkg/constant"
+	"whizard-telemetry-ruler/pkg/rule"
+	"whizard-telemetry-ruler/pkg/utils"
 
 	"net/http"
 )
@@ -41,7 +45,7 @@ func init() {
 }
 
 // NewNotificationManagerExporter create a notification manager exporter.
-func NewNotificationManagerExporter(receiver *v1alpha1.Receiver) (AuditExporter, error) {
+func NewNotificationManagerExporter(receiver *Receiver) (Exporters, error) {
 
 	wh := &NotificationManagerExporter{}
 
@@ -57,23 +61,83 @@ func (nm *NotificationManagerExporter) Connect() error {
 	return nil
 }
 
-func (nm *NotificationManagerExporter) Export(e *auditing.Event) error {
+func (nm *NotificationManagerExporter) ExportAuditingAlerts(a *rule.Auditing) error {
 
+	msg := a.Annotations
+	msgKey := "message"
+	msgValue := a.Message
+	if existingValue, exists := msg[msgKey]; exists {
+		fmt.Printf("Key '%s' already exists with value: %s,Please change the annotation field to another field \n", msg, existingValue)
+	} else {
+		msg[msgKey] = msgValue
+	}
 	data := template.Data{
 		Alerts: template.Alerts{
 			{
 				Labels: map[string]string{
-					"namespace":                e.ObjectRef.Namespace,
-					"resource":                 e.ObjectRef.Resource,
-					"name":                     e.ObjectRef.Name,
-					"user":                     e.User.Username,
-					"group":                    utils.OutputAsJson(e.User.Groups),
-					"verb":                     e.Verb,
+					"namespace":                a.ObjectRef.Namespace,
+					"resource":                 a.ObjectRef.Resource,
+					"name":                     a.ObjectRef.Name,
+					"user":                     a.User.Username,
+					"group":                    utils.OutputAsJson(a.User.Groups),
+					"verb":                     a.Verb,
 					"alerttype":                "auditing",
-					"alertname":                e.GetAlertRuleName(),
-					"requestReceivedTimestamp": e.RequestReceivedTimestamp.String(),
+					"alertname":                a.GetAlertRuleName(),
+					"requestReceivedTimestamp": a.RequestReceivedTimestamp.String(),
 				},
-				Annotations: map[string]string{"message": e.Message},
+				Annotations: msg,
+			},
+		},
+	}
+
+	s, err := utils.ToJsonString(data)
+	if err != nil {
+		return err
+	}
+
+	request, err := http.NewRequest(http.MethodPost, nm.URL, bytes.NewBuffer([]byte(s)))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := nm.client.Do(request)
+	if err != nil {
+		return err
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s", response.Status)
+	}
+
+	// Discard the body
+	_, _ = io.Copy(ioutil.Discard, response.Body)
+
+	return nil
+}
+
+func (nm *NotificationManagerExporter) ExportEventAlerts(e *rule.Event) error {
+
+	msg := e.Annotations
+	msgKey := "message"
+	msgValue := e.Message
+	if existingValue, exists := msg[msgKey]; exists {
+		fmt.Printf("Key '%s' already exists with value: %s,Please change the annotation field to another field \n", msg, existingValue)
+	} else {
+		msg[msgKey] = msgValue
+	}
+	data := template.Data{
+		Alerts: template.Alerts{
+			{
+				Labels: map[string]string{
+					"namespace": e.Event.Namespace,
+					"reason":    e.Event.Reason,
+					"name":      e.Event.Name,
+					"user":      e.Event.Source.Host,
+					"group":     utils.OutputAsJson(e.Event.Series),
+					"alerttype": "events",
+					"alertname": e.GetAlertRuleName(),
+				},
+				Annotations: msg,
 			},
 		},
 	}
@@ -104,7 +168,7 @@ func (nm *NotificationManagerExporter) Export(e *auditing.Event) error {
 }
 
 // Reconnect only reset the notification manager url.
-func (nm *NotificationManagerExporter) Reconnect(receiver *v1alpha1.Receiver) error {
+func (nm *NotificationManagerExporter) Reconnect(receiver *Receiver) error {
 
 	err := nm.GetHttpConfig(receiver)
 	if err != nil {
@@ -114,10 +178,10 @@ func (nm *NotificationManagerExporter) Reconnect(receiver *v1alpha1.Receiver) er
 	return nil
 }
 
-func (nm *NotificationManagerExporter) GetHttpConfig(receiver *v1alpha1.Receiver) error {
+func (nm *NotificationManagerExporter) GetHttpConfig(receiver *Receiver) error {
 
 	if receiver == nil || receiver.ReceiverType != constant.NotificationManagerReciver {
-		fmt.Println(receiver)
+		glog.Error(receiver)
 		return fmt.Errorf("no notification manager receiver config")
 	}
 
@@ -163,7 +227,7 @@ func (nm *NotificationManagerExporter) Type() string {
 	return constant.NotificationManagerReciver
 }
 
-func (nm *NotificationManagerExporter) DeepEqual(_ *v1alpha1.Receiver) bool {
+func (nm *NotificationManagerExporter) DeepEqual(_ *Receiver) bool {
 
 	return false
 }

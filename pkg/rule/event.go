@@ -1,123 +1,68 @@
+/*
+Copyright 2023 The KubeSphere Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rule
 
 import (
-	"fmt"
-	"github.com/kubesphere/event-rule-engine/visitor"
+	"encoding/json"
+	"github.com/golang/glog"
 	corev1 "k8s.io/api/core/v1"
-	"strings"
-	"sync"
+	"whizard-telemetry-ruler/pkg/utils"
 )
 
 type Event struct {
-	Event   *corev1.Event
-	once    sync.Once
-	flatEvt map[string]interface{}
-
-	AlertEvaluated        bool
-	NotificationEvaluated bool
-}
-
-func (evt *Event) Flat() map[string]interface{} {
-	evt.once.Do(func() {
-		evt.flatEvt = util.StructToFlatMap(evt.Event, "", ".")
-	})
-	return evt.flatEvt
-}
-
-func (evt *Event) EvalByRule(rule *eventsv1alpha1.EventRule) (ok bool, err error) {
-	defer func() {
-		if p := recover(); p != nil {
-			err = fmt.Errorf("eval error: %v. event[%s/%s], rule[name:%s, condition:%s]",
-				p, evt.Event.Namespace, evt.Event.Name, rule.Name, rule.Condition)
-		}
-	}()
-	if rule.Condition != "" {
-		err, ok = visitor.EventRuleEvaluate(evt.Flat(), rule.Condition)
-	}
-	return
-}
-
-func (evt *Event) EvalToNotification(evtRules []*eventsv1alpha1.Rule) (*EventNotification, error) {
-	for _, er := range evtRules {
-		for _, rule := range er.Spec.Rules {
-			if rule.Enable && rule.Type == eventsv1alpha1.RuleTypeNotification {
-				ok, e := evt.EvalByRule(&rule)
-				if e != nil {
-					return nil, e
-				}
-				if ok {
-					return &EventNotification{Event: evt.Event}, nil
-				}
-			}
-		}
-	}
-	return nil, nil
-}
-
-func (evt *Event) EvalToAlert(evtRules []*eventsv1alpha1.Rule) (*EventAlert, error) {
-	for _, er := range evtRules {
-		for _, rule := range er.Spec.Rules {
-			if rule.Enable && rule.Type == eventsv1alpha1.RuleTypeAlert {
-				ok, e := evt.EvalByRule(&rule)
-				if e != nil {
-					return nil, e
-				}
-				if ok {
-					return generateAlert(evt, &rule), nil
-				}
-			}
-		}
-	}
-	return nil, nil
-}
-
-func generateAlert(evt *Event, rule *eventsv1alpha1.EventRule) *EventAlert {
-	alert := &amkit.RawAlert{
-		Annotations: map[string]string{},
-		Labels: map[string]string{
-			"alertname": rule.Name,
-			"alerttype": "event",
-			strings.ToLower(evt.Event.InvolvedObject.Kind): evt.Event.InvolvedObject.Name,
-		},
-	}
-	if ns := evt.Event.InvolvedObject.Namespace; ns != "" {
-		alert.Labels["namespace"] = ns
-	}
-	fp := evt.Event.InvolvedObject.FieldPath
-	if strings.HasPrefix(fp, "spec.containers") {
-		alert.Labels["container"] = strings.TrimSuffix(strings.TrimPrefix(fp, "spec.containers{"), "}")
-	} else if strings.HasPrefix(fp, "spec.initContainers{") {
-		alert.Labels["container"] = strings.TrimSuffix(strings.TrimPrefix(fp, "spec.initContainers{"), "}")
-	}
-	for k, v := range rule.Labels {
-		alert.Labels[k] = v
-	}
-
-	for k, v := range rule.Annotations {
-		alert.Annotations[k] = util.FormatMap(v, evt.Flat())
-	}
-
-	return &EventAlert{
-		Alert: alert,
-	}
-}
-
-type EventNotification struct {
 	Event *corev1.Event
+	// The message send to user,formatted by th rule output.
+	Message string
+	// The workspace which this audit event happened.
+	Workspace string
+	//custom message
+	Annotations map[string]string
+	// name of rule which triggered alert.
+	alertRuleName string
 }
 
-type EventAlert struct {
-	Alert *amkit.RawAlert
+func NewEvents(data []byte) ([]*Event, error) {
+
+	var eventList []*Event
+
+	err := json.Unmarshal(data, &eventList)
+	if err != nil {
+		glog.Errorf("unmarshal failed with:%v,body is: %s", err, string(data))
+		return nil, err
+	}
+
+	return eventList, nil
 }
 
-type NotificationSinker interface {
-	SinkNotifications(ctx context.Context, evtNotifications []*EventNotification) error
+func (e *Event) ToString() string {
+
+	s, err := utils.ToJsonString(e)
+	if err != nil {
+		glog.Error(err)
+		return ""
+	}
+
+	return s
 }
 
-type AlertSinker interface {
-	SinkAlerts(ctx context.Context, evtAlerts []*EventAlert) error
+func (e *Event) GetAlertRuleName() string {
+	return e.alertRuleName
 }
 
-type EventSource interface {
-	Events() <-chan *Event
+func (e *Event) SetAlertRuleName(n string) {
+	e.alertRuleName = n
 }

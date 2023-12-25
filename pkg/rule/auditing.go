@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,8 +18,7 @@ package rule
 
 import (
 	"encoding/json"
-	"rule/pkg/constant"
-	"rule/pkg/utils"
+	"whizard-telemetry-ruler/pkg/utils"
 
 	"strings"
 
@@ -34,40 +33,15 @@ type Auditing struct {
 	Devops string
 	// The workspace which this audit event happened.
 	Workspace string
-	// The devops project which this audit event happened.
-	Cluster string
 	// The message send to user,formatted by th rule output.
 	Message string
 	// name of rule which triggered alert.
 	alertRuleName string
-	alertOnly     bool
-}
-
-type AuditingList struct {
-	Items []Auditing
+	//custom message
+	Annotations map[string]string
 }
 
 func NewAuditing(data []byte) ([]*Auditing, error) {
-
-	var eventList AuditingList
-
-	err := json.Unmarshal(data, &eventList)
-	if err != nil {
-		glog.Errorf("unmarshal failed with:%v,body is: %s", err, string(data))
-		return nil, err
-	}
-
-	var es []*Auditing
-	for _, event := range eventList.Items {
-		e := event
-		e.Verb = strings.ToLower(e.Verb)
-		es = append(es, &e)
-	}
-
-	return es, nil
-}
-
-func NewAlertAuditing(data []byte) ([]*Auditing, error) {
 
 	var auditingList []*Auditing
 
@@ -102,13 +76,6 @@ func (a *Auditing) ToString() string {
 			req = ""
 		}
 	}
-	// If the length of a log is greater than 16384, fluent bit will automatically divide the log into two lines,
-	// and the log in json format will not be parsed correctly. To ensure the integrity of the auditing data,
-	// the extra-long RequestObject will be deleted.
-	if len(req) > constant.FluentBitLogLenMax {
-		req = ""
-		glog.Errorf("event(%s) RequestObject length(%d) exceeded the limit, delete RequestObject", a.AuditID, len(req))
-	}
 	m["RequestObject"] = req
 
 	resp := ""
@@ -118,10 +85,6 @@ func (a *Auditing) ToString() string {
 			glog.Error(err)
 			resp = ""
 		}
-	}
-	if len(resp) > constant.FluentBitLogLenMax {
-		resp = ""
-		glog.Errorf("event(%s) ResponseObject length(%d) exceeded the limit, delete ResponseObject", a.AuditID, len(req))
 	}
 	m["ResponseObject"] = resp
 
@@ -152,26 +115,6 @@ func (a *Auditing) ToString() string {
 		return ""
 	}
 
-	if len(s) > constant.FluentBitLogLenMax && len(req) > 0 {
-		m["RequestObject"] = ""
-		glog.Errorf("event(%s) length(%d) exceeded the limit, delete ResponseObject", a.AuditID, len(req))
-		s, err = utils.ToJsonString(m)
-		if err != nil {
-			glog.Error(err)
-			return ""
-		}
-	}
-
-	if len(s) > constant.FluentBitLogLenMax && len(resp) > 0 {
-		m["ResponseObject"] = ""
-		glog.Errorf("event(%s) length(%d) exceeded the limit, delete ResponseObject", a.AuditID, len(req))
-		s, err = utils.ToJsonString(m)
-		if err != nil {
-			glog.Error(err)
-			return ""
-		}
-	}
-
 	return s
 }
 
@@ -181,12 +124,4 @@ func (a *Auditing) GetAlertRuleName() string {
 
 func (a *Auditing) SetAlertRuleName(n string) {
 	a.alertRuleName = n
-}
-
-func (a *Auditing) IsAlertOnly() bool {
-	return a.alertOnly
-}
-
-func (a *Auditing) SetAlertOnly(b bool) {
-	a.alertOnly = b
 }

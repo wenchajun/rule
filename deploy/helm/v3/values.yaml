@@ -1,40 +1,11 @@
-# value of kube-auditing operator
-operator:
-  image:
-    repository: kubesphere/kube-auditing-operator
-    tag: v0.2.0
-    pullPolicy: Always
-  imagePullSecrets: []
-  resources: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-
-
-# value of kube-auditing webhook
-webhook:
-  name: kube-auditing-webhook
-
-  image:
-    repository: kubesphere/kube-auditing-webhook
-    tag: v0.2.0
-    pullPolicy: Always
-  replicas: 1
-  args: []
-  imagePullSecrets: []
-  resources: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  receivers:
-    - name: alert
-      type: alertmanager
-      config:
-        service:
-          namespace: kubesphere-monitoring-system
-          name: alertmanager-main
-          port: 9093
-  archivingPriority: DEBUG
-  alertingPriority: WARNING
-  k8sAuditingEnabled: false
-  useHTTPS: true
+image:
+  repository: kubesphere/whizard-telemetry-ruler
+  tag: v0.1.0
+  pullPolicy: Always
+imagePullSecrets: []
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+args:
+  - '--port=8080'

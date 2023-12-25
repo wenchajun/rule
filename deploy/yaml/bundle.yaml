@@ -1,0 +1,370 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubesphere-logging-system
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  name: clusterrulegroups.logging.whizard.io
+spec:
+  group: logging.whizard.io
+  names:
+    kind: ClusterRuleGroup
+    listKind: ClusterRuleGroupList
+    plural: clusterrulegroups
+    shortNames:
+    - crg
+    singular: clusterrulegroup
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ClusterRuleGroup is the Schema for the rules API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RuleSpec defines the desired state of ClusterRuleGroup.
+            properties:
+              rules:
+                items:
+                  properties:
+                    alerts:
+                      properties:
+                        annotations:
+                          additionalProperties:
+                            type: string
+                          description: Values of Annotations can use format string
+                            with the fields of the event.
+                          type: object
+                        message:
+                          description: The output formatter of message which send
+                            to user.
+                          type: string
+                        severity:
+                          description: Rule priority, INFO,WARNING,ERROR,CRITICAL.
+                          type: string
+                      type: object
+                    desc:
+                      description: Rule describe.
+                      type: string
+                    enable:
+                      description: Is the rule enable.
+                      type: boolean
+                    expr:
+                      description: Expression of the rule
+                      properties:
+                        alias:
+                          description: This effective When the rule kind is alias.
+                          type: string
+                        condition:
+                          description: Rule condition This effective When the rule
+                            kind is rule.
+                          type: string
+                        kind:
+                          description: Rule kind, rule, macro,list,alias.
+                          type: string
+                        list:
+                          description: This effective When the rule kind is list.
+                          items:
+                            type: string
+                          type: array
+                        macro:
+                          description: This effective When the rule kind is macro.
+                          type: string
+                      type: object
+                    name:
+                      description: Rule name.
+                      type: string
+                  type: object
+                type: array
+              type:
+                description: whizard log type ,auditing/events/logging
+                type: string
+            type: object
+          status:
+            description: RuleStatus defines the observed state of ClusterRuleGroup.
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: whizard-telemetry-ruler
+  namespace: kubesphere-logging-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: whizard-telemetry-ruler
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - pods
+  - secrets
+  - namespaces
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - logging.whizard.io
+  resources:
+  - clusterrulegroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: whizard-telemetry-ruler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: whizard-telemetry-ruler
+subjects:
+- kind: ServiceAccount
+  name: whizard-telemetry-ruler
+  namespace: kubesphere-logging-system
+---
+apiVersion: v1
+data:
+  sink.json: ""
+kind: ConfigMap
+metadata:
+  annotations:
+    kubesphere.io/creator: admin
+  name: whizard-telemetry-ruler
+  namespace: kubesphere-logging-system
+---
+apiVersion: v1
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURjRENDQWxpZ0F3SUJBZ0lSQU1LWlJ3UnY1Y3ZKR0VDSmUrNlVLVEF3RFFZSktvWklodmNOQVFFTEJRQXcKRlRFVE1CRUdBMVVFQXhNS2QyVmlhRzl2YXkxallUQWdGdzB5TXpFeU1qQXdOelEyTkRWYUdBOHlNVEl6TVRFeQpOakEzTkRZME5Wb3dKakVrTUNJR0ExVUVBeE1iZDJocGVtRnlaQzEwWld4bGJXVjBjbmt0Y25Wc1pYSXRjM1pqCk1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBd1pYK3hYREFYb3JQUU9xRWNtMTcKWHFtYlhUdDNod3BsekhSeTdvOFNFeFZFY2VucGYvZ3VNdi90YVZpKzM1Z3dFN3BnU3N0ZTBMeUk3Mlp3Qk1qMgpEamlDY1c3clVwbmRIYmRWM2dlV0RhWTdQYW9ld2tmblc5UnYzMmVxbGtOTkc4Z1UzdlpSbklxTTZ4TzlCWndXCmFETXQ4VFFlWWQyY1JJRUFIZGZEOUJOaytGMGs3YjB2U0Y4SXhWNlFjNytHOUh6MHhlOFNyNEdYZUpsS0NidUgKaXJ2Y0lNbS9WVjRHakpSR05XSGVINzVOSWVlODZOWVNSV3RzaG1mWFR0N3h0SUtDT3FpUHZlb2o3aGJQcSs5aApLQWQ1UDE5V283OEtiTW9Ea09aT1QrK3duRUdlekZCNlk0MGhFK1JaVXJrQVordStyR0dPZFN0QWg4VExON0lNCm13SURBUUFCbzRHbk1JR2tNQTRHQTFVZER3RUIvd1FFQXdJRm9EQWRCZ05WSFNVRUZqQVVCZ2dyQmdFRkJRY0QKQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFIL0JBSXdBREFmQmdOVkhTTUVHREFXZ0JRaUZic2g4THFlcWs4VAp2bTR3WVM2NG84TFoxakJFQmdOVkhSRUVQVEE3Z2psM2FHbDZZWEprTFhSbGJHVnRaWFJ5ZVMxeWRXeGxjaTF6CmRtTXVhM1ZpWlhOd2FHVnlaUzFzYjJkbmFXNW5MWE41YzNSbGJTNXpkbU13RFFZSktvWklodmNOQVFFTEJRQUQKZ2dFQkFFaXVwRDBYcXM5c2sxclluREdJMVBtN3ZJUXBFVFpxMjRWeTd0bVRiTWtEcXhVZFEyazJ1U1VBdjFydwp6Tm1QVVF4OTlWV2ZaMjZhOWphTkhJV1hFR0VmYzZycU0xTWFtTXZwMTMzODZHVUhVZlJoUmpaRHozdzRramR4CmxOcUhyRzZMYy9vaGVBRGI5ajAzdy92WW8zZGorMEhEWVZVY08vS3paUVVvemVjQzVWVUFMeVp6SWRQSVRRQnkKNGNXbzhmcHkyVUtQU3JIU0c4NzBVTU9YdFl3dWMxRmhQc2JIWUNZcFh1SkJ2anVzNVl2OWJCQzFKU2xiMEFDUwpOcktCTTIraU53aSsxZGNRUnVDclFXNGFSVUNYTmFaSEZKUlJGRmVIbkNydm9EQW12MGR6RGZoOVgydTBGWU1ICm8vOGRqS1RGaHZwcm5YRmdtaHVXMHB6S3Z3RT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBd1pYK3hYREFYb3JQUU9xRWNtMTdYcW1iWFR0M2h3cGx6SFJ5N284U0V4VkVjZW5wCmYvZ3VNdi90YVZpKzM1Z3dFN3BnU3N0ZTBMeUk3Mlp3Qk1qMkRqaUNjVzdyVXBuZEhiZFYzZ2VXRGFZN1Bhb2UKd2tmblc5UnYzMmVxbGtOTkc4Z1UzdlpSbklxTTZ4TzlCWndXYURNdDhUUWVZZDJjUklFQUhkZkQ5Qk5rK0Ywawo3YjB2U0Y4SXhWNlFjNytHOUh6MHhlOFNyNEdYZUpsS0NidUhpcnZjSU1tL1ZWNEdqSlJHTldIZUg3NU5JZWU4CjZOWVNSV3RzaG1mWFR0N3h0SUtDT3FpUHZlb2o3aGJQcSs5aEtBZDVQMTlXbzc4S2JNb0RrT1pPVCsrd25FR2UKekZCNlk0MGhFK1JaVXJrQVordStyR0dPZFN0QWg4VExON0lNbXdJREFRQUJBb0lCQUJZZjBHZzhSS0FKZVRwUQpFeWNJd0NySGM0d3FPYlRqU1ZNZWsrd1R5ZHNJZVRRVHFhNEliUzlDOUowdm1WRHdrYjRQZE9YWGJGU3ExM09VCjM0U01leUtRN3NlTUI3VC9CTGhhdGFPVWRsL0UrY3hJWHcrUkxDM2dqNUNXeG5ZNTV0d2Y5OUtya0JRMStYajgKWG9QL25NZjM0VzVKcUpkQ3ZwTk5zdmUyS3h6L3owVURsMEFLT3M5eEM1aGJxNVlLdjhzOGxsdW16M0hsUm8zOApUVzNQQWVjT1hPOHlhQ0JwRHVZaWdINk1QTnVrY0lWYUgxZFlvOTB1MFl3V2lXWEQxUnlIS0UweFRRa2RXeHNDCnNtQmtVYUlCSmZVQ203Y0hSMVNUT1BRQTYrcm1VTTBvZXhIblJ6YTJEU0hzY0dpUDVieUtCeEFzcU5XWExWQWcKdVBVVjRyRUNnWUVBOTI1ZjVnMEJhZnl6bzdRcnVYN0V6OXQyVzArc1ZlZVA4ZnpFcEVIRGNwOXNWR2svT1hCeQpKMmdhYWhheFhmVDcvTFo2U2l1ejEwODUrUU9lczFzaXVCZkpSM1cyWC9UZXZkNENTWHpGSzFWUTVZTEZseng2CkZnaWlYMnZzVXdLaW9ZcGNjRzFqTmJ1clpqT2pKbCszTE5HYi9xdnliNlBrLzBkdmh4V25UdlVDZ1lFQXlFcEEKRnl5eVlHa2kvRXVJYlBHZVRSTkZUQ1FmZnVTaExJUUJHYVRSZUN3c1U0R3ltcFFtZWxlZ3pXTVhNY1BFa0hwZwpPMEFib0drbHpqRFNZdVk2Q3JUWVBGUmYweVZ6Ym9iVER1NVdnVmp3OUxzbFR6MmJBVDljQlBjdVdLOVJjYWpzCkU5VzRockNXbkM4bmZESFJTRUpPem55VTBjVUp1ak0xQ0ZPU2swOENnWUVBaktLZHUySjFCVXJ1eUFObVB0N0EKK3V2Z2ovSHZJRHluNG9Fck83bHRYNzhoa2JEb2tMdExCdjd5MUkzbGJtUUt2Zzd4M3lxTDQ3dFNWaWtxa1FNaAo3c1VHVUttbGFWRURNYVA0Wk5DWU9STWJFZmlNV25PemFNYXJrOVVCMUFUUmIwUDNXcWV5Rmg1L1EyM2lNN04vCnArZlQ1S0xTLzRXR2FWcXZGM2JGUytrQ2dZRUFwWEp3THJTRlJJNlVqOFAxRmNrZzhwb1FqQ3pxdDI4MGxBa1cKdjVBZVdCNWxIelhyeXpURjlCbWVnd3B2aG5Rb1V4QkRuYTMvSkNxM1IvT2NWb1hIUEVEV3ZqOFVTTjZPMDZZYgpnaUh1NHpvTkVKdm0zZVlOdktJUjZTZ2w2S3dwb3JIZkVTTmlJaUNNeU1kSzNwUm9SRUJCeU4rd0x2ZU1hWHNUCk82V05WcEVDZ1lFQTB1TGg2ZFczeXJyc3k3ZWNDbzJlTWRjNTRPNUJpTnROc29XS0tuQlJFK2lPVkxTamhCNjEKamRnU2RCZEMxd1JuVlNFUkFnenl2bWkzSW9uL0JZOGhDRlB4V3NtQ3BEUEZaNWhseExsd2JSWHB4NmRlaU03SQpWOUg5N3FiVi9BN0Y1WWJYeWtpbFQwQU5lbFg2S0hhVmwzcjE0VlFreGVOcGRIekh2SmhOSVFNPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+kind: Secret
+metadata:
+  annotations:
+    meta.helm.sh/release-name: rule
+    meta.helm.sh/release-namespace: kubesphere-logging-system
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: whizard-telemetry-ruler-secret
+  namespace: kubesphere-logging-system
+type: kubernetes.io/tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "3"
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: whizard-telemetry-ruler
+  namespace: kubesphere-logging-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whizard-telemetry-ruler
+  template:
+    metadata:
+      labels:
+        app: whizard-telemetry-ruler
+    spec:
+      containers:
+      - args:
+        - --port=8080
+        command:
+        - whizard-telemetry-ruler
+        image: kubesphere/whizard-telemetry-ruler:v0.1.0
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readiness
+            port: 6443
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
+        name: whizard-telemetry-ruler
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 6443
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 200m
+            memory: 500Mi
+          requests:
+            cpu: 20m
+            memory: 50Mi
+        volumeMounts:
+        - mountPath: /etc/kube/rule
+          name: cert
+          readOnly: true
+        - mountPath: /etc/localtime
+          name: host-time
+          readOnly: true
+      serviceAccountName: whizard-telemetry-ruler
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: whizard-telemetry-ruler-secret
+      - hostPath:
+          path: /etc/localtime
+          type: ""
+        name: host-time
+---
+apiVersion: logging.whizard.io/v1alpha1
+kind: ClusterRuleGroup
+metadata:
+  name: example-rule
+  namespace: kubesphere-logging-system
+spec:
+  rules:
+  - desc: all action not need to be audit
+    expr:
+      kind: list
+      list:
+      - get
+      - list
+      - watch
+    name: ignore-action
+  - desc: all operator need to be audit
+    expr:
+      kind: list
+      list:
+      - create
+      - delete
+      - update
+      - patch
+    name: action
+  - desc: pod
+    expr:
+      kind: macro
+      macro: ObjectRef.Resource="pods"
+    name: pod
+  - desc: service
+    expr:
+      kind: macro
+      macro: ObjectRef.Resource="services"
+    name: service
+  - desc: the alias of the user related to audit event
+    expr:
+      alias: User.username
+      kind: alias
+    name: user
+  - desc: the alias of the resource name
+    expr:
+      alias: ObjectRef.Name
+      kind: alias
+    name: name
+  - desc: the alias of the resource namespace
+    expr:
+      alias: ObjectRef.Namespace
+      kind: alias
+    name: namespace
+  - desc: create operator
+    expr:
+      kind: macro
+      macro: Verb = "create"
+    name: create
+  - alerting:
+      severity: INFO
+    desc: audit the change of resource
+    enable: true
+    expr:
+      condition: Verb in ${action}
+      kind: rule
+    name: ResourceChange
+  - alerting:
+      annotations:
+        summary: creat hostnetwork pod
+        summaryCn: 创建 hostnetwork 容器
+      message: ${user} ${Verb} HostNetwork Pod ${name} in Namespace ${namespace}.
+      severity: WARNING
+    desc: Detect an attempt to start a pod using the host network
+    enable: true
+    expr:
+      condition: ${pod} and ${create} and RequestObject.spec.hostNetwork = true
+      kind: rule
+    name: CreateHostnetworkPod
+  - alerting:
+      annotations:
+        summary: creat hostport pod
+        summaryCn: 创建 hostport 容器
+      message: ${user} ${Verb} HostPort Pod ${name} in Namespace ${namespace}.
+      severity: WARNING
+    desc: Detect an attempt to start a pod mount to a host port
+    enable: true
+    expr:
+      condition: ${pod} and ${create} and (RequestObject.spec.containers[*].ports[*].hostPort
+        > 0 or RequestObject.spec.initContainers[*].ports[*].hostPort > 0)
+      kind: rule
+    name: CreateHostportPod
+  - alerting:
+      annotations:
+        summary: creat hostnetwork pod
+        summaryCn: 创建 hostnetwork 容器
+      message: ${user} ${Verb} NodePort Service ${name} in Namespace ${namespace}.
+      severity: WARNING
+    desc: Detect an attempt to start a service with a NodePort service type
+    enable: true
+    expr:
+      condition: ${service} and ${create} and RequestObject.spec.ports[*].nodePort
+        > 0
+      kind: rule
+    name: CreateNodeportService
+  - alerting:
+      annotations:
+        summary: attach or exec pod
+        summaryCn: 进入容器
+      message: ${user} ${ObjectRef.Subresource} Pod ${name} in Namespace ${namespace}.
+      severity: WARNING
+    desc: Detect any attempt to attach/exec to a pod
+    expr:
+      condition: ${pod} and ${create} and ObjectRef.Subresource in ("exec", "attach")
+      kind: rule
+    name: AttachOrExecPod
+  type: auditing

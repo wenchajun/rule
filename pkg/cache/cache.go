@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package cache
 
 import (
 	"context"
-	"kube-auditing/pkg/apis/auditing.kubesphere.io/v1alpha1"
 	"sync"
+	"whizard-telemetry-ruler/pkg/apis/logging.whizard.io/v1alpha1"
 
 	"github.com/golang/glog"
 	corev1 "k8s.io/api/core/v1"

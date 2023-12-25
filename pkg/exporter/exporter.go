@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,31 +19,34 @@ package exporter
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"whizard-telemetry-ruler/pkg/rule"
 
 	"sync"
 )
 
-type Factory func(receiver *v1alpha1.Receiver) (AuditExporter, error)
+type Factory func(receiver *Receiver) (Exporters, error)
 
 // AuditExporter used to send alert to receiver.
-type AuditExporter interface {
+type Exporters interface {
 	// Connect to alert receiver.
 	Connect() error
 	// Reconnect to the alert receiver.
-	Reconnect(receiver *v1alpha1.Receiver) error
+	Reconnect(receiver *Receiver) error
 	// Name return name of export. usually it same with the name of receiver.
 	Name() string
 	// Type return The type of receiver which this exporter will send alert to.
 	Type() string
 	// DeepEqual compare the receiver of this export is same as the given receiver.
-	DeepEqual(receiver *v1alpha1.Receiver) bool
-	// Export alert
-	Export(event *auditing.Event) error
+	DeepEqual(receiver *Receiver) bool
+	// Export auditing alert
+	ExportAuditingAlerts(auditing *rule.Auditing) error
+	// Export events alert
+	ExportEventAlerts(events *rule.Event) error
 }
 
 var mutex sync.Mutex
 var plugins map[string]Factory
-var exporters map[string]AuditExporter
+var exporters map[string]Exporters
 
 // RegisterPlugin used to register a new type of export must.
 // Name is the type of receiver, factory must be return an
@@ -57,12 +60,25 @@ func RegisterPlugin(name string, factory Factory) {
 }
 
 // Export will send alert to all receivers.
-func Export(e *auditing.Event) {
+func ExportAuditingAlerts(a *rule.Auditing) {
 
 	for _, exporter := range exporters {
-		err := exporter.Export(e)
+		err := exporter.ExportAuditingAlerts(a)
 		if err != nil {
-			glog.Errorf("output e(%s) to(%s) error, %s", e.AuditID, exporter.Name(), err)
+			glog.Errorf("output e(%s) to(%s) error, %s", a.AuditID, exporter.Name(), err)
+		}
+	}
+
+	return
+}
+
+// Export will send alert to all receivers.
+func ExportEventAlerts(e *rule.Event) {
+
+	for _, exporter := range exporters {
+		err := exporter.ExportEventAlerts(e)
+		if err != nil {
+			glog.Errorf("output e(%s) to(%s) error, %s", e.Event.UID, exporter.Name(), err)
 		}
 	}
 
@@ -72,13 +88,13 @@ func Export(e *auditing.Event) {
 // Connect will structure exporters from receivers.
 // It will refactor all exporters from new receivers when
 // call this function when receivers changed.
-func Connect(receivers []v1alpha1.Receiver) []error {
+func Connect(receivers []Receiver) []error {
 
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	var errs []error
-	m := make(map[string]AuditExporter)
+	m := make(map[string]Exporters)
 	for _, receiver := range receivers {
 
 		// Reconnect if the exporter of this receiver exist.
@@ -121,7 +137,7 @@ func Connect(receivers []v1alpha1.Receiver) []error {
 }
 
 // Get exporter by receiver
-func getExporter(receiver v1alpha1.Receiver) AuditExporter {
+func getExporter(receiver Receiver) Exporters {
 
 	// Get exporter from maps with receiver name
 	exporter, ok := exporters[receiver.ReceiverName]

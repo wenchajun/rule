@@ -1,0 +1,68 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: whizard-telemetry-ruler
+  namespace: kubesphere-logging-system
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    deployment.kubernetes.io/revision: '3'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whizard-telemetry-ruler
+  template:
+    metadata:
+      labels:
+        app: whizard-telemetry-ruler
+    spec:
+      serviceAccountName: whizard-telemetry-ruler
+      volumes:
+        - name: cert
+          secret:
+            secretName: whizard-telemetry-ruler-secret
+            defaultMode: 420
+        - name: host-time
+          hostPath:
+            path: /etc/localtime
+            type: ''
+      containers:
+        - name: whizard-telemetry-ruler
+          image: kubesphere/whizard-telemetry-ruler:v0.1.0
+          command:
+            - whizard-telemetry-ruler
+          args:
+            - '--port=8080'
+          resources:
+            limits:
+              cpu: 200m
+              memory: 500Mi
+            requests:
+              cpu: 20m
+              memory: 50Mi
+          volumeMounts:
+            - name: cert
+              readOnly: true
+              mountPath: /etc/kube/rule
+            - name: host-time
+              readOnly: true
+              mountPath: /etc/localtime
+          livenessProbe:
+            httpGet:
+              path: /readiness
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10

@@ -3,8 +3,9 @@ resources:
 - namespace.yaml
 - roles.yaml
 - rules.yaml
-- webhook.yaml
-- operator.yaml
+- whizard-telemetry-ruler.yaml
+- whizard-telemetry-ruler-secret.yaml
+- whizard-telemetry-ruler-config.yaml
 
 # Change to the namespace you want such as:
 namespace: kubesphere-logging-system

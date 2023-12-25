@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeSphere Authors.
+Copyright 2023 The KubeSphere Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -74,15 +74,15 @@ func Flatten(m map[string]interface{}) map[string]interface{} {
 	return o
 }
 
-func IsLabelsContains(labels, sublabels map[string]string) bool {
+func IsExporter(exist string, exporter []string) bool {
 
-	for k, v := range sublabels {
-		if labels[k] != v {
-			return false
+	for k, _ := range exporter {
+		if exporter[k] == exist {
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 func IsExist(ss []string, key string) bool {

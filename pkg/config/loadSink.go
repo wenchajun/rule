@@ -20,8 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang/glog"
-	"sigs.k8s.io/yaml"
-
+	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
@@ -63,18 +62,14 @@ func LoadSinks() (*exporter.Sink, error) {
 		fmt.Printf("receiver is empty, please check configmap")
 		return nil, fmt.Errorf("failed to get configmap")
 	}
-	fmt.Println("xxxxxxxxxxx")
-	fmt.Println(data)
 
 	var sink *exporter.Sink
 	err = yaml.Unmarshal([]byte(data), &sink)
 	if err != nil {
 		glog.Errorf("json decode failed : %v", err)
-		fmt.Println("-----------")
-		fmt.Println(err)
 		return nil, fmt.Errorf("failed to get configmap")
 	}
-	fmt.Println(utils.ToJsonString(sink.Receivers))
-
+	fmt.Println("-------------------")
+    fmt.Println(utils.ToJsonString(sink))
 	return sink, err
 }

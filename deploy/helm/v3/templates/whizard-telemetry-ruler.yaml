@@ -44,24 +44,6 @@ spec:
             - name: host-time
               readOnly: true
               mountPath: /etc/localtime
-          livenessProbe:
-            httpGet:
-              path: /readiness
-              port: 6443
-              scheme: HTTPS
-            initialDelaySeconds: 10
-            timeoutSeconds: 3
-            periodSeconds: 10
-            successThreshold: 1
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /readiness
-              port: 6443
-              scheme: HTTPS
-            initialDelaySeconds: 10
-            timeoutSeconds: 3
-            periodSeconds: 10
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       affinity:

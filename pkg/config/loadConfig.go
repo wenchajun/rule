@@ -103,10 +103,10 @@ func loadConfig(sink *exporter.Sink) (*Config, error) {
 
 	conf := &Config{}
 
-	if sink == nil {
-		config.Receivers = nil
+	if sink == nil  {
+		conf.Receivers =nil
 	} else {
-		conf.Receivers = sink.Receivers
+			conf.Receivers = sink.Receivers
 	}
 
 	// Load rules

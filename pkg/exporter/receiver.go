@@ -18,20 +18,20 @@ package exporter
 
 type Sink struct {
 	// The alert which receivers config.
-	Receivers []Receiver `yaml:"receivers,omitempty"`
+	Receivers []Receiver
 }
 
 // Receiver config which received the audit/event/logging alert
 type Receiver struct {
 	// Receiver name
 	// +optional
-	ReceiverName string `yaml:"name" protobuf:"bytes,8,opt,name=name"`
+	ReceiverName string `yaml:"name,omitempty" protobuf:"bytes,8,opt,name=name"`
 	// Receiver type, alertmanager or webhook
 	// +optional
-	ReceiverType string `yaml:"type" protobuf:"bytes,8,opt,name=type"`
+	ReceiverType string `yaml:"type,omitempty" protobuf:"bytes,8,opt,name=type"`
 	// ClientConfig holds the connection parameters for the webhook
 	// +optional
-	ReceiverConfig WebhookClientConfig `yaml:"config" protobuf:"bytes,8,opt,name=config"`
+	ReceiverConfig WebhookClientConfig `yaml:"config,omitempty" protobuf:"bytes,8,opt,name=config"`
 }
 
 // WebhookClientConfig contains the information to make a connection with the webhook
@@ -100,4 +100,3 @@ type ServiceReference struct {
 	// +optional
 	Port *int32 `yaml:"port,omitempty" protobuf:"varint,4,opt,name=port"`
 }
-
